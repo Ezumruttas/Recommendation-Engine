@@ -1,0 +1,54 @@
+<html>
+<head>
+<title>recom.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #0033b3;}
+.s1 { color: #080808;}
+.s2 { color: #008080; font-weight: bold;}
+.s3 { color: #8c8c8c; font-style: italic;}
+.s4 { color: #1750eb;}
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+recom.py</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">streamlit </span><span class="s0">as </span><span class="s1">st</span>
+<span class="s0">import </span><span class="s1">pandas </span><span class="s0">as </span><span class="s1">pd</span>
+<span class="s0">from </span><span class="s1">PIL </span><span class="s0">import </span><span class="s1">Image</span>
+
+<span class="s1">st.title(</span><span class="s2">&quot;Recommender Based on User Behaviour&quot;</span><span class="s1">)</span>
+<span class="s1">st.header(</span><span class="s2">&quot;Let's Not Make A Cold Start...&quot;</span><span class="s1">)</span>
+<span class="s1">st.markdown(</span><span class="s2">&quot;Please Select The Product You Are Interested&quot;</span><span class="s1">)</span>
+<span class="s1">df = pd.read_csv(</span><span class="s2">'https://storage.googleapis.com/ty2020/reco.csv.gz'</span><span class="s1">);</span>
+<span class="s3">#The csv file coming from weighted dataframe will be attached</span>
+<span class="s1">a = pd.read_csv(</span><span class="s2">r&quot;C:\Users\Ebru\Desktop\up\fnl.csv&quot;</span><span class="s1">)</span>
+<span class="s1">a=a.rename(columns={</span><span class="s2">'Unnamed: 0'</span><span class="s1">:</span><span class="s2">'User'</span><span class="s1">})</span>
+
+<span class="s1">pr=df[[</span><span class="s2">'productcontentid'</span><span class="s1">,</span><span class="s2">'ImageLink'</span><span class="s1">]].drop_duplicates()</span>
+<span class="s1">is_check = st.checkbox(</span><span class="s2">&quot;Display User Data&quot;</span><span class="s1">)</span>
+<span class="s0">if </span><span class="s1">is_check:</span>
+    <span class="s1">st.write(a)</span>
+<span class="s1">user=[]</span>
+<span class="s0">for </span><span class="s1">i </span><span class="s0">in </span><span class="s1">a.User:</span>
+  <span class="s1">user.append(i)</span>
+
+<span class="s1">option = st.selectbox(</span><span class="s2">&quot;Enter UserId&quot;</span><span class="s1">, user, </span><span class="s4">0</span><span class="s1">)</span>
+<span class="s1">productids=a[a[</span><span class="s2">'User'</span><span class="s1">]==option].iloc[:,</span><span class="s4">1</span><span class="s1">:]</span>
+<span class="s1">b=productids.values.tolist()</span>
+<span class="s1">b=b[</span><span class="s4">0</span><span class="s1">]</span>
+<span class="s1">sales=df.drop_duplicates([</span><span class="s2">'user_id'</span><span class="s1">,</span><span class="s2">'productcontentid'</span><span class="s1">],keep=</span><span class="s2">'first'</span><span class="s1">)</span>
+<span class="s1">sales=df[df[</span><span class="s2">'user_id'</span><span class="s1">]==option][</span><span class="s2">'ImageLink'</span><span class="s1">].head(</span><span class="s4">6</span><span class="s1">).to_list()</span>
+<span class="s1">st.header(</span><span class="s2">'The products you bought'</span><span class="s1">)</span>
+<span class="s1">st.image(sales,width=</span><span class="s4">100</span><span class="s1">)</span>
+<span class="s1">st.header(</span><span class="s2">'Recommendations for you'</span><span class="s1">)</span>
+<span class="s1">Img=[]</span>
+<span class="s0">for </span><span class="s1">i </span><span class="s0">in </span><span class="s1">b:</span>
+    <span class="s1">urls=pr[pr.productcontentid==i].iat[</span><span class="s4">0</span><span class="s1">,</span><span class="s4">1</span><span class="s1">]</span>
+    <span class="s1">Img.append(urls)</span>
+<span class="s1">st.image(Img,width=</span><span class="s4">100</span><span class="s1">)</span></pre>
+</body>
+</html>

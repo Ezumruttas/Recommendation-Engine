@@ -1,0 +1,145 @@
+<html>
+<head>
+<title>category.py</title>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<style type="text/css">
+.s0 { color: #0033b3;}
+.s1 { color: #080808;}
+.s2 { color: #008080; font-weight: bold;}
+.s3 { color: #1750eb;}
+.s4 { color: #8c8c8c; font-style: italic;}
+</style>
+</head>
+<body bgcolor="#ffffff">
+<table CELLSPACING=0 CELLPADDING=5 COLS=1 WIDTH="100%" BGCOLOR="#c0c0c0" >
+<tr><td><center>
+<font face="Arial, Helvetica" color="#000000">
+category.py</font>
+</center></td></tr></table>
+<pre><span class="s0">import </span><span class="s1">streamlit </span><span class="s0">as </span><span class="s1">st</span>
+<span class="s0">import </span><span class="s1">pandas </span><span class="s0">as </span><span class="s1">pd</span>
+<span class="s0">from </span><span class="s1">PIL </span><span class="s0">import </span><span class="s1">Image</span>
+<span class="s0">from </span><span class="s1">sklearn.cluster </span><span class="s0">import </span><span class="s1">KMeans</span>
+<span class="s0">from </span><span class="s1">sklearn </span><span class="s0">import </span><span class="s1">metrics</span>
+<span class="s0">from </span><span class="s1">sklearn.feature_extraction.text </span><span class="s0">import </span><span class="s1">TfidfVectorizer</span>
+<span class="s0">from </span><span class="s1">sklearn.metrics.pairwise </span><span class="s0">import </span><span class="s1">linear_kernel</span>
+<span class="s0">from </span><span class="s1">nltk.corpus </span><span class="s0">import </span><span class="s1">stopwords</span>
+<span class="s0">import </span><span class="s1">nltk</span>
+<span class="s1">nltk.download(</span><span class="s2">'stopwords'</span><span class="s1">)</span>
+
+<span class="s1">st.title(</span><span class="s2">&quot;Recommender Based on Popular Items&quot;</span><span class="s1">)</span>
+<span class="s1">st.header(</span><span class="s2">&quot;Let's Not Make A Cold Start...&quot;</span><span class="s1">)</span>
+<span class="s1">st.markdown(</span><span class="s2">&quot;Please Select The Product That You Are Interested&quot;</span><span class="s1">)</span>
+<span class="s1">df = pd.read_csv(</span><span class="s2">'https://storage.googleapis.com/ty2020/reco.csv.gz'</span><span class="s1">);</span>
+<span class="s1">pr=df[[</span><span class="s2">'productcontentid'</span><span class="s1">,</span><span class="s2">'ImageLink'</span><span class="s1">]].drop_duplicates()</span>
+<span class="s1">pd.set_option(</span><span class="s2">'display.max_colwidth'</span><span class="s1">, -</span><span class="s3">1</span><span class="s1">)</span>
+<span class="s1">scenario1 = df.drop([</span><span class="s2">'partition_date'</span><span class="s1">, </span><span class="s2">'orderparentid'</span><span class="s1">, </span><span class="s2">'user_id'</span><span class="s1">, </span><span class="s2">'color_id'</span><span class="s1">, </span><span class="s2">'gender'</span><span class="s1">, </span><span class="s2">'price'</span><span class="s1">], axis=</span><span class="s3">1</span><span class="s1">)</span>
+<span class="s0">import </span><span class="s1">sqlite3</span>
+
+<span class="s1">conn = sqlite3.connect(</span><span class="s2">&quot;:memory:&quot;</span><span class="s1">)</span>
+<span class="s1">scenario1.to_sql(</span><span class="s2">&quot;scenario1&quot;</span><span class="s1">, conn, if_exists=</span><span class="s2">'replace'</span><span class="s1">)</span>
+<span class="s1">buss = pd.read_sql(</span>
+    <span class="s2">&quot;&quot;&quot; 
+    select business_unit, count(1) n 
+    from scenario1 
+    group by business_unit 
+    order by n desc 
+    &quot;&quot;&quot;</span><span class="s1">, conn</span>
+<span class="s1">)</span>
+<span class="s1">buss[</span><span class="s2">'weight'</span><span class="s1">] = buss[[</span><span class="s2">'n'</span><span class="s1">]].transform(</span><span class="s0">lambda </span><span class="s1">x: x / x.sum())</span>
+<span class="s1">buss = buss.drop(</span><span class="s2">'n'</span><span class="s1">, axis=</span><span class="s3">1</span><span class="s1">)</span>
+<span class="s1">df1 = df.merge(buss, on=[</span><span class="s2">'business_unit'</span><span class="s1">]).sort_values(</span><span class="s2">'weight'</span><span class="s1">, ascending=</span><span class="s0">False</span><span class="s1">)</span>
+<span class="s1">category = pd.read_sql(</span>
+    <span class="s2">&quot;&quot;&quot; 
+    select category_name, business_unit, count(1) n 
+    from scenario1 
+    group by  category_name ,business_unit 
+    order by n desc 
+    &quot;&quot;&quot;</span>
+    <span class="s1">, conn)</span>
+<span class="s1">category[</span><span class="s2">'weight'</span><span class="s1">] = category[[</span><span class="s2">'n'</span><span class="s1">]].transform(</span><span class="s0">lambda </span><span class="s1">x: x / x.sum())</span>
+<span class="s1">category = category.drop(</span><span class="s2">'n'</span><span class="s1">, axis=</span><span class="s3">1</span><span class="s1">)</span>
+<span class="s1">df2 = df1.merge(category, on=[</span><span class="s2">'category_name'</span><span class="s1">, </span><span class="s2">'business_unit'</span><span class="s1">]).sort_values(</span><span class="s2">'weight_y'</span><span class="s1">, ascending=</span><span class="s0">False</span><span class="s1">)</span>
+<span class="s1">alpha = </span><span class="s3">0.7</span>
+<span class="s1">df2[</span><span class="s2">'weight'</span><span class="s1">] = alpha * df2.weight_x + (</span><span class="s3">1 </span><span class="s1">- alpha) * df2.weight_y</span>
+<span class="s1">df2 = df2.drop([</span><span class="s2">'weight_x'</span><span class="s1">, </span><span class="s2">'weight_y'</span><span class="s1">], axis=</span><span class="s3">1</span><span class="s1">)</span>
+<span class="s1">reco = df2.sort_values(</span><span class="s2">'weight'</span><span class="s1">, ascending=</span><span class="s0">False</span><span class="s1">)</span>
+
+<span class="s1">recoss=reco.drop_duplicates(subset=[</span><span class="s2">'business_unit'</span><span class="s1">,</span><span class="s2">'gender'</span><span class="s1">], keep=</span><span class="s2">&quot;first&quot;</span><span class="s1">)</span>
+
+<span class="s1">is_check = st.checkbox(</span><span class="s2">&quot;Display Data&quot;</span><span class="s1">)</span>
+<span class="s0">if </span><span class="s1">is_check:</span>
+    <span class="s1">st.write(recoss)</span>
+<span class="s1">df = st.cache(pd.read_csv)(</span><span class="s2">&quot;https://storage.googleapis.com/ty2020/reco.csv.gz&quot;</span><span class="s1">)</span>
+
+
+<span class="s1">url_list=[]</span>
+<span class="s1">caption_list=[]</span>
+<span class="s1">prid=[]</span>
+<span class="s0">class </span><span class="s1">Recom():</span>
+
+    <span class="s0">def </span><span class="s1">recommend(n):</span>
+        <span class="s0">for </span><span class="s1">i </span><span class="s0">in </span><span class="s1">range(</span><span class="s3">0</span><span class="s1">, n):</span>
+            <span class="s1">url_list.append(recoss.iat[i,</span><span class="s3">11</span><span class="s1">])</span>
+            <span class="s1">caption_list.append(recoss.iat[i,</span><span class="s3">6</span><span class="s1">])</span>
+            <span class="s1">prid.append(recoss.iat[i,</span><span class="s3">3</span><span class="s1">])</span>
+        <span class="s1">st.image(url_list,caption=prid,width=</span><span class="s3">100</span><span class="s1">)</span>
+
+<span class="s1">Recom.recommend(n=</span><span class="s3">12</span><span class="s1">)</span>
+
+
+<span class="s4">#Making sure of the products shown in the cold start section is in the sample for selection of the product</span>
+<span class="s1">con=pd.read_csv(</span><span class="s2">'https://storage.googleapis.com/ty2020/reco.csv.gz'</span><span class="s1">);</span>
+<span class="s1">con.gender=con.gender.fillna(</span><span class="s2">'Unkown'</span><span class="s1">)</span>
+<span class="s1">con.drop(</span><span class="s2">'color_id'</span><span class="s1">,axis=</span><span class="s3">1</span><span class="s1">,inplace=</span><span class="s0">True</span><span class="s1">)</span>
+<span class="s1">con[</span><span class="s2">'description'</span><span class="s1">]=con.business_unit.str.cat(</span><span class="s2">&quot; &quot;</span><span class="s1">+con.category_name.str.cat(</span><span class="s2">&quot; &quot;</span><span class="s1">+con.gender))</span>
+<span class="s1">co1=con.sample(</span><span class="s3">10000</span><span class="s1">)</span>
+<span class="s1">co1=co1.append(con[con[</span><span class="s2">'productcontentid'</span><span class="s1">]==</span><span class="s3">35608512</span><span class="s1">].drop_duplicates(</span><span class="s2">'productcontentid'</span><span class="s1">))</span>
+<span class="s1">co1=co1.append(con[con[</span><span class="s2">'productcontentid'</span><span class="s1">]==</span><span class="s3">12466759</span><span class="s1">].drop_duplicates(</span><span class="s2">'productcontentid'</span><span class="s1">))</span>
+<span class="s1">co1=co1.append(con[con[</span><span class="s2">'productcontentid'</span><span class="s1">]==</span><span class="s3">37305141</span><span class="s1">].drop_duplicates(</span><span class="s2">'productcontentid'</span><span class="s1">))</span>
+<span class="s1">co1=co1.append(con[con[</span><span class="s2">'productcontentid'</span><span class="s1">]==</span><span class="s3">44061024</span><span class="s1">].drop_duplicates(</span><span class="s2">'productcontentid'</span><span class="s1">))</span>
+<span class="s1">co1=co1.append(con[con[</span><span class="s2">'productcontentid'</span><span class="s1">]==</span><span class="s3">42677447</span><span class="s1">].drop_duplicates(</span><span class="s2">'productcontentid'</span><span class="s1">))</span>
+<span class="s1">co1=co1.append(con[con[</span><span class="s2">'productcontentid'</span><span class="s1">]==</span><span class="s3">42623615</span><span class="s1">].drop_duplicates(</span><span class="s2">'productcontentid'</span><span class="s1">))</span>
+<span class="s1">co1=co1.append(con[con[</span><span class="s2">'productcontentid'</span><span class="s1">]==</span><span class="s3">41660319</span><span class="s1">].drop_duplicates(</span><span class="s2">'productcontentid'</span><span class="s1">))</span>
+<span class="s1">co1=co1.append(con[con[</span><span class="s2">'productcontentid'</span><span class="s1">]==</span><span class="s3">40602690</span><span class="s1">].drop_duplicates(</span><span class="s2">'productcontentid'</span><span class="s1">))</span>
+<span class="s1">co1=co1.append(con[con[</span><span class="s2">'productcontentid'</span><span class="s1">]==</span><span class="s3">41807709</span><span class="s1">].drop_duplicates(</span><span class="s2">'productcontentid'</span><span class="s1">))</span>
+<span class="s1">co1=co1.append(con[con[</span><span class="s2">'productcontentid'</span><span class="s1">]==</span><span class="s3">45347096</span><span class="s1">].drop_duplicates(</span><span class="s2">'productcontentid'</span><span class="s1">))</span>
+<span class="s1">co1=co1.append(con[con[</span><span class="s2">'productcontentid'</span><span class="s1">]==</span><span class="s3">33402136</span><span class="s1">].drop_duplicates(</span><span class="s2">'productcontentid'</span><span class="s1">))</span>
+<span class="s1">co1=co1.append(con[con[</span><span class="s2">'productcontentid'</span><span class="s1">]==</span><span class="s3">44387414</span><span class="s1">].drop_duplicates(</span><span class="s2">'productcontentid'</span><span class="s1">))</span>
+<span class="s1">co1=co1.drop_duplicates()</span>
+<span class="s1">co1=co1.reset_index()</span>
+<span class="s1">co1.drop(</span><span class="s2">'index'</span><span class="s1">,axis=</span><span class="s3">1</span><span class="s1">,inplace=</span><span class="s0">True</span><span class="s1">)</span>
+<span class="s1">pr=co1[[</span><span class="s2">'productcontentid'</span><span class="s1">,</span><span class="s2">'ImageLink'</span><span class="s1">]].drop_duplicates()</span>
+<span class="s1">s1=co1[[</span><span class="s2">'productcontentid'</span><span class="s1">,</span><span class="s2">'description'</span><span class="s1">]]</span>
+<span class="s1">stopw_turkish = stopwords.words(</span><span class="s2">'english'</span><span class="s1">) + stopwords.words(</span><span class="s2">'turkish'</span><span class="s1">)</span>
+<span class="s1">tf = TfidfVectorizer(analyzer=</span><span class="s2">'word'</span><span class="s1">,stop_words=</span><span class="s2">'english'</span><span class="s1">)</span>
+<span class="s1">tfidf_matrix=tf.fit_transform(s1.description)</span>
+<span class="s1">cosine_similarities=linear_kernel(tfidf_matrix, tfidf_matrix)</span>
+<span class="s1">results= {}</span>
+<span class="s0">for </span><span class="s1">idx, row </span><span class="s0">in </span><span class="s1">s1.iterrows():</span>
+    <span class="s1">similar_indices = cosine_similarities[idx].argsort()[:-</span><span class="s3">100</span><span class="s1">:-</span><span class="s3">1</span><span class="s1">]</span>
+    <span class="s1">similar_items = [(cosine_similarities[idx][i], s1[</span><span class="s2">'productcontentid'</span><span class="s1">][i]) </span><span class="s0">for </span><span class="s1">i </span><span class="s0">in </span><span class="s1">similar_indices]</span>
+    <span class="s1">results[row[</span><span class="s2">'productcontentid'</span><span class="s1">]] = similar_items[</span><span class="s3">1</span><span class="s1">:]</span>
+<span class="s0">def </span><span class="s1">item(id):</span>
+    <span class="s0">return </span><span class="s1">s1.loc[s1[</span><span class="s2">'productcontentid'</span><span class="s1">] == id][</span><span class="s2">'description'</span><span class="s1">].tolist()[</span><span class="s3">0</span><span class="s1">]</span>
+
+
+<span class="s1">list1 = []</span>
+<span class="s1">list2 = []</span>
+
+<span class="s0">def </span><span class="s1">recommend(item_id, num):</span>
+    <span class="s1">recs = results[item_id][:num]</span>
+
+    <span class="s0">for </span><span class="s1">rec </span><span class="s0">in </span><span class="s1">recs:</span>
+        <span class="s1">list1.append(rec[</span><span class="s3">1</span><span class="s1">])</span>
+    <span class="s0">for </span><span class="s1">i </span><span class="s0">in </span><span class="s1">list1:</span>
+        <span class="s1">list2.append(pr[pr[</span><span class="s2">'productcontentid'</span><span class="s1">]==i].iat[</span><span class="s3">0</span><span class="s1">,</span><span class="s3">1</span><span class="s1">])</span>
+    <span class="s0">return </span><span class="s1">list2</span>
+<span class="s1">option = st.selectbox(</span><span class="s2">&quot;Product Choices&quot;</span><span class="s1">, prid, </span><span class="s3">0</span><span class="s1">)</span>
+<span class="s1">st.markdown(</span><span class="s2">'Similar Products'</span><span class="s1">)</span>
+<span class="s1">list10 = recommend(item_id=option,num=</span><span class="s3">5</span><span class="s1">)</span>
+<span class="s1">st.image(list10,width=</span><span class="s3">100</span><span class="s1">)</span>
+
+</pre>
+</body>
+</html>
